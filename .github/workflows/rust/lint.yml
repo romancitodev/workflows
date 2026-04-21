@@ -1,4 +1,4 @@
-name: Rust · Lint
+name: Rust · Lint
 
 on:
   workflow_call:

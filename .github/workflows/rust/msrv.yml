@@ -1,4 +1,4 @@
--name: Rust · MSRV
+name: Rust · MSRV
 
 on:
   workflow_call:

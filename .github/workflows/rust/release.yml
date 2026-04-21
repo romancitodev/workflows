@@ -1,16 +1,19 @@
-name: Rust · Release
+name: Rust · Release
 
 on:
   workflow_call:
     secrets:
+      CARGO_REGISTRY_TOKEN:
+        required: true   # token para publicar en crates.io
       GH_TOKEN:
-        required: false   # si no se pasa, usa GITHUB_TOKEN automáticamente
+        required: false  # si no se pasa, usa GITHUB_TOKEN automáticamente
 
 permissions:
   contents: write
 
 env:
   CARGO_TERM_COLOR: always
+  CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
 
 jobs:
   verify:
@@ -23,33 +26,8 @@ jobs:
       - run: cargo test --all-features
       - run: cargo build --release --all-features
 
-  check-changes:
-    name: Check API changes (lib)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Buscar tag anterior
-        id: prev_tag
-        run: |
-          PREV=$(git tag --sort=-version:refname \
-            | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+' \
-            | sed -n '2p')
-          echo "tag=${PREV}" >> "$GITHUB_OUTPUT"
-
-      - name: Diff de src/ vs tag anterior
-        if: |
-          steps.prev_tag.outputs.tag  != ''
-        run: |
-          echo "### Cambios en \`src/\` desde ${{ steps.prev_tag.outputs.tag }}" \
-            >> "$GITHUB_STEP_SUMMARY"
-          git diff "${{ steps.prev_tag.outputs.tag }}"..HEAD -- src/ \
-            | head -300 >> "$GITHUB_STEP_SUMMARY" || true
-
   release:
-    name: Create Release
+    name: Release with cargo-release
     runs-on: ubuntu-latest
     needs: [verify]
     steps:
@@ -57,22 +35,19 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Generar changelog con git-cliff
-        uses: orhun/git-cliff-action@v3
-        id: cliff
-        with:
-          config: cliff.toml
-          args: --latest --strip header
-        env:
-          OUTPUT: CHANGELOG_RELEASE.md
-          GITHUB_REPO: ${{ github.repository }}
+      - name: Configurar git
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
 
-      - name: Crear GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          body_path: CHANGELOG_RELEASE.md
-          tag_name: ${{ github.ref_name }}
-          draft: false
-          prerelease: ${{ contains(github.ref_name, '-') }}
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Instalar cargo-release
+        uses: taiki-e/install-action@cargo-release
+
+      - name: Ejecutar cargo release
+        run: cargo release --execute --no-confirm
         env:
           GITHUB_TOKEN: ${{ secrets.GH_TOKEN || github.token }}
