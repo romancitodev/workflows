@@ -98,3 +98,81 @@ jobs:
 ```
 
 Necesitas el token de crates.io y opcionalmente un `release.toml` si quieres configurar algo.
+
+## Ejemplos de uso
+
+### Repo básico sin requirements estrictos
+
+```yaml
+# .github/workflows/ci.yml
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  ci:
+    uses: romancitodev/workflows/.github/workflows/rust-ci.yml@main
+    with:
+      strict-mode: false
+    secrets:
+      CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+```
+
+### Repo con tests obligatorios
+
+```yaml
+# .github/workflows/ci.yml
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  ci:
+    uses: romancitodev/workflows/.github/workflows/rust-ci.yml@main
+    with:
+      strict-mode: true
+    secrets:
+      CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+```
+
+### Repo con tests específicos
+
+```yaml
+# .github/workflows/ci.yml
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  ci:
+    uses: romancitodev/workflows/.github/workflows/rust-ci.yml@main
+    with:
+      cargo-test-flags: "--lib"
+      strict-mode: true
+    secrets:
+      CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+```
+
+### Repo con clippy customizado
+
+```yaml
+jobs:
+  ci:
+    uses: romancitodev/workflows/.github/workflows/rust-ci.yml@main
+    with:
+      clippy-extra-flags: "-A clippy::too_many_arguments -A clippy::type_complexity"
+    secrets:
+      CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+```

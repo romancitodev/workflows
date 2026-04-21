@@ -4,7 +4,7 @@ on:
   workflow_call:
     inputs:
       clippy-extra-flags:
-        description: "Flags adicionales para clippy (ej: '-A clippy::too_many_arguments')"
+        description: "Flags adicionales para clippy"
         type: string
         required: false
         default: ""
@@ -26,10 +26,8 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
 
-      - name: Rustfmt
+      - name: Check formatting
         run: cargo fmt --all --check
 
-      - name: Clippy
-        run: |
-          cargo clippy --all-targets --all-features -- \
-            ${{ inputs.clippy-extra-flags }}
+      - name: Lint with clippy
+        run: cargo clippy --all-targets --all-features -- ${{ inputs.clippy-extra-flags }}

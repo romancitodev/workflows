@@ -4,27 +4,27 @@ on:
   workflow_call:
     inputs:
       execute:
-        description: "Correr tests y coverage (!execute en el PR)"
+        description: "Ejecutar tests"
         type: string
         required: true
       skip_tests:
-        description: "Saltear tests aún con !execute (--skip-tests en el PR)"
+        description: "Saltear tests"
         type: string
         required: true
       is_pr:
-        description: "Si el evento es un pull_request"
+        description: "Si es un pull request"
         type: string
         required: true
       cargo-test-flags:
-        description: "Flags adicionales para cargo test"
+        description: "Flags para cargo test"
         type: string
         required: false
         default: ""
       strict-mode:
-        description: "Modo estricto: los tests deben pasar siempre"
+        description: "Tests obligatorios"
         type: boolean
         required: false
-        default: false
+        default: true
     secrets:
       CODECOV_TOKEN:
         required: false
@@ -38,32 +38,28 @@ jobs:
     name: Build & Report
     runs-on: ubuntu-latest
     steps:
+      # Setup
       - uses: actions/checkout@v4
-
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: llvm-tools-preview
-
       - uses: Swatinem/rust-cache@v2
 
-      # ── Compilación ────────────────────────────────────────────────────────
-      - name: Cargo check
+      # Build
+      - name: Build check
         id: build
         run: cargo check --all-features
         continue-on-error: true
 
-      # ── Tests + Coverage ───────────────────────────────────────────────────
-      - name: Instalar cargo-llvm-cov
-        if: |
-          inputs.execute    == 'true' &&
-          inputs.skip_tests != 'true'
+      # Test setup
+      - name: Install test coverage tool
+        if: inputs.execute == 'true' && inputs.skip_tests != 'true'
         uses: taiki-e/install-action@cargo-llvm-cov
 
-      - name: Tests + generar lcov
+      # Test execution
+      - name: Run tests with coverage
         id: tests
-        if: |
-          inputs.execute    == 'true' &&
-          inputs.skip_tests != 'true'
+        if: inputs.execute == 'true' && inputs.skip_tests != 'true'
         run: |
           set +e
           cargo llvm-cov \
@@ -83,7 +79,8 @@ jobs:
           exit $TEST_EXIT
         continue-on-error: true
 
-      - name: Extraer % de cobertura
+      # Coverage extraction
+      - name: Extract coverage percentage
         id: cov_pct
         if: steps.tests.outcome == 'success'
         run: |
@@ -92,7 +89,8 @@ jobs:
             | tr -d '%')
           echo "percent=${PCT:-N/A}" >> "$GITHUB_OUTPUT"
 
-      - name: Subir a Codecov
+      # Upload to codecov
+      - name: Upload coverage to Codecov
         if: steps.tests.outcome == 'success'
         uses: codecov/codecov-action@v4
         with:
@@ -100,23 +98,24 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
           fail_ci_if_error: false
 
-      # ── Comentario en el PR ────────────────────────────────────────────────
-      - name: Extraer detalles de tests fallidos
+      # Test failure details
+      - name: Extract failed tests
         id: test_details
-        if: |
-          inputs.is_pr == 'true' &&
-          steps.tests.outputs.status == 'failure'
+        if: steps.tests.outputs.status == 'failure'
         run: |
           if [ -f test-output.log ]; then
-            FAILURES=$(grep -E "^test .* FAILED" test-output.log || echo "")
-            if [ -n "$FAILURES" ]; then
-              # Escapar para JSON
-              FAILURES=$(echo "$FAILURES" | jq -Rs '.')
-              echo "failures=$FAILURES" >> "$GITHUB_OUTPUT"
+            FAILURES=$(grep -E "^test .* FAILED" test-output.log | head -20 || echo "")
+            PANICS=$(grep -E "thread '.*' panicked" test-output.log | head -10 || echo "")
+            
+            if [ -n "$FAILURES" ] || [ -n "$PANICS" ]; then
+              COMBINED=$(printf "%s\n%s" "$FAILURES" "$PANICS" | grep -v "^$")
+              COMBINED=$(echo "$COMBINED" | jq -Rs '.')
+              echo "failures=$COMBINED" >> "$GITHUB_OUTPUT"
             fi
           fi
 
-      - name: Publicar / actualizar comentario
+      # PR comment
+      - name: Post CI report to PR
         if: inputs.is_pr == 'true'
         uses: actions/github-script@v7
         with:
@@ -156,12 +155,11 @@ jobs:
                 try {
                   const failList = JSON.parse(failures).split('\n').filter(l => l.trim());
                   if (failList.length > 0) {
-                    failureDetail = '\n\n### ❌ Failed Tests\n\`\`\`\n' + failList.slice(0, 10).join('\n') + '\n\`\`\`';
-                    if (failList.length > 10) {
-                      failureDetail += `\n... and ${failList.length - 10} more failures`;
-                    }
+                    failureDetail = '\n\n### ❌ Failed Tests\n```\n' + failList.join('\n') + '\n```';
                   }
-                } catch (e) {}
+                } catch (e) {
+                  failureDetail = '\n\n### ❌ Failed Tests\n```\n' + failures + '\n```';
+                }
               }
             }
 
@@ -199,23 +197,19 @@ jobs:
               });
             }
 
-      # ── Propagar fallo después de comentar ────────────────────────────────
-      - name: Propagar fallo de compilación
+      # Status checks
+      - name: Fail if build failed
         if: steps.build.outcome == 'failure'
         run: exit 1
 
-      - name: Propagar fallo de tests en modo estricto
-        if: |
-          inputs.strict-mode == true &&
-          steps.tests.outputs.status == 'failure'
+      - name: Fail if tests failed in strict mode
+        if: inputs.strict-mode == true && steps.tests.outputs.status == 'failure'
         run: |
           echo "::error:: ❌ Tests failed in strict mode - PR cannot be merged"
           exit 1
 
-      - name: Reportar fallo de tests en modo no estricto
-        if: |
-          inputs.strict-mode == false &&
-          steps.tests.outputs.status == 'failure'
+      - name: Warn if tests failed in non-strict mode
+        if: inputs.strict-mode == false && steps.tests.outputs.status == 'failure'
         run: |
           echo "::warning:: ⚠️ Tests failed but merge is allowed (non-strict mode)"
           exit 0

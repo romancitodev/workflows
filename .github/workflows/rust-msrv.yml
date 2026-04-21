@@ -13,43 +13,40 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Detectar si es librería
+      # Detect if it's a library
+      - name: Check if library
         id: is_lib
         run: |
           if grep -q '^\[lib\]' Cargo.toml || [ -f src/lib.rs ]; then
-            echo "result=true"  >> "$GITHUB_OUTPUT"
+            echo "result=true" >> "$GITHUB_OUTPUT"
           else
             echo "result=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Leer MSRV desde Cargo.toml
+      # Read MSRV from Cargo.toml
+      - name: Read MSRV version
         if: steps.is_lib.outputs.result == 'true'
         id: msrv
         run: |
-          VERSION=$(grep '^rust-version' Cargo.toml \
-            | sed 's/.*= *"\(.*\)"/\1/')
+          VERSION=$(grep '^rust-version' Cargo.toml | sed 's/.*= *"\(.*\)"/\1/')
           if [ -z "$VERSION" ]; then
             echo "::warning:: 'rust-version' not found in Cargo.toml — skipping MSRV check"
             echo "found=false" >> "$GITHUB_OUTPUT"
           else
             echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
-            echo "found=true"         >> "$GITHUB_OUTPUT"
+            echo "found=true" >> "$GITHUB_OUTPUT"
           fi
 
+      # Setup toolchain
       - uses: dtolnay/rust-toolchain@master
-        if: |
-          steps.is_lib.outputs.result == 'true' &&
-          steps.msrv.outputs.found    == 'true'
+        if: steps.is_lib.outputs.result == 'true' && steps.msrv.outputs.found == 'true'
         with:
           toolchain: ${{ steps.msrv.outputs.version }}
 
       - uses: Swatinem/rust-cache@v2
-        if: |
-          steps.is_lib.outputs.result == 'true' &&
-          steps.msrv.outputs.found    == 'true'
+        if: steps.is_lib.outputs.result == 'true' && steps.msrv.outputs.found == 'true'
 
-      - name: Compilar en MSRV
-        if: |
-          steps.is_lib.outputs.result == 'true' &&
-          steps.msrv.outputs.found    == 'true'
+      # Build on MSRV
+      - name: Build on MSRV
+        if: steps.is_lib.outputs.result == 'true' && steps.msrv.outputs.found == 'true'
         run: cargo build --all-features
