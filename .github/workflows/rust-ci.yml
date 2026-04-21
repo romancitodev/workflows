@@ -37,7 +37,7 @@ jobs:
   lint:
     name: Lint
     needs: flags
-    uses: romancitodev/workflows/.github/workflows/rust/lint.yml@main
+    uses: ./.github/workflows/rust-lint.yml
     with:
       clippy-extra-flags: ${{ inputs.clippy-extra-flags }}
 
@@ -45,7 +45,7 @@ jobs:
   build-and-report:
     name: Build & Report
     needs: flags
-    uses: romancitodev/workflows/.github/workflows/rust/build-report.yml@main
+    uses: ./.github/workflows/rust-build-report.yml
     with:
       execute:    ${{ needs.flags.outputs.execute }}
       skip_tests: ${{ needs.flags.outputs.skip_tests }}
@@ -57,4 +57,4 @@ jobs:
   msrv:
     name: MSRV
     needs: flags
-    uses: romancitodev/workflows/.github/workflows/rust/msrv.yml@main
+    uses: ./.github/workflows/rust-msrv.yml
