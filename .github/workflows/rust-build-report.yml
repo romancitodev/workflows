@@ -67,7 +67,7 @@ jobs:
             --workspace \
             --lcov \
             --output-path lcov.info \
-            ${{ inputs.cargo-test-flags }} -- --nocapture --test-threads=1 2>&1 | tee test-output.log
+            ${{ inputs['cargo-test-flags'] }} -- --nocapture --test-threads=1 2>&1 | tee test-output.log
           TEST_EXIT=$?
           set -e
           
@@ -202,14 +202,12 @@ jobs:
         if: steps.build.outcome == 'failure'
         run: exit 1
 
-      - name: Fail if tests failed in strict mode
-        if: inputs.strict-mode == true && steps.tests.outputs.status == 'failure'
+      - name: Fail if tests failed
+        if: steps.tests.outputs.status == 'failure'
         run: |
-          echo "::error:: ❌ Tests failed in strict mode - PR cannot be merged"
+          if [ "${{ inputs['strict-mode'] }}" == "true" ]; then
+            echo "::error:: ❌ Tests failed in strict mode - PR cannot be merged"
+          else
+            echo "::error:: ❌ Tests failed"
+          fi
           exit 1
-
-      - name: Warn if tests failed in non-strict mode
-        if: inputs.strict-mode == false && steps.tests.outputs.status == 'failure'
-        run: |
-          echo "::warning:: ⚠️ Tests failed but merge is allowed (non-strict mode)"
-          exit 0

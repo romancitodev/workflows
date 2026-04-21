@@ -30,4 +30,4 @@ jobs:
         run: cargo fmt --all --check
 
       - name: Lint with clippy
-        run: cargo clippy --all-targets --all-features -- ${{ inputs.clippy-extra-flags }}
+        run: cargo clippy --all-targets --all-features -- ${{ inputs['clippy-extra-flags'] }}

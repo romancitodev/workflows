@@ -54,7 +54,7 @@ jobs:
     needs: flags
     uses: ./.github/workflows/rust-lint.yml
     with:
-      clippy-extra-flags: ${{ inputs.clippy-extra-flags }}
+      clippy-extra-flags: ${{ inputs['clippy-extra-flags'] }}
 
   # ── 2. Build + PR comment + Coverage ──────────────────────────────────────
   build-and-report:
@@ -65,8 +65,8 @@ jobs:
       execute:    ${{ needs.flags.outputs.execute }}
       skip_tests: ${{ needs.flags.outputs.skip_tests }}
       is_pr:      ${{ needs.flags.outputs.is_pr }}
-      cargo-test-flags: ${{ inputs.cargo-test-flags }}
-      strict-mode: ${{ inputs.strict-mode }}
+      cargo-test-flags: ${{ inputs['cargo-test-flags'] }}
+      strict-mode: ${{ inputs['strict-mode'] }}
     secrets:
       CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
 
