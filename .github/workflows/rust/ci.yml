@@ -1,0 +1,60 @@
+name: Rust · CI
+
+on:
+  workflow_call:
+    inputs:
+      clippy-extra-flags:
+        description: "Flags adicionales para clippy"
+        type: string
+        required: false
+        default: ""
+    secrets:
+      CODECOV_TOKEN:
+        required: false
+
+jobs:
+  flags:
+    name: Parse PR flags
+    runs-on: ubuntu-latest
+    outputs:
+      execute:    ${{ steps.parse.outputs.execute }}
+      skip_tests: ${{ steps.parse.outputs.skip_tests }}
+      is_pr:      ${{ steps.parse.outputs.is_pr }}
+    steps:
+      - id: parse
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const isPR  = context.eventName === 'pull_request';
+            const body  = context.payload.pull_request?.body ?? '';
+            const first = body.split(/\r?\n/)[0].trim();
+
+            core.setOutput('is_pr',      String(isPR));
+            core.setOutput('execute',    String(isPR && first.includes('!execute')));
+            core.setOutput('skip_tests', String(isPR && first.includes('--skip-tests')));
+
+  # ── 1. Lint ────────────────────────────────────────────────────────────────
+  lint:
+    name: Lint
+    needs: flags
+    uses: romancitodev/workflows/.github/workflows/rust/lint.yml@main
+    with:
+      clippy-extra-flags: ${{ inputs.clippy-extra-flags }}
+
+  # ── 2. Build + PR comment + Coverage ──────────────────────────────────────
+  build-and-report:
+    name: Build & Report
+    needs: flags
+    uses: romancitodev/workflows/.github/workflows/rust/build-report.yml@main
+    with:
+      execute:    ${{ needs.flags.outputs.execute }}
+      skip_tests: ${{ needs.flags.outputs.skip_tests }}
+      is_pr:      ${{ needs.flags.outputs.is_pr }}
+    secrets:
+      CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+
+  # ── 3. MSRV ────────────────────────────────────────────────────────────────
+  msrv:
+    name: MSRV
+    needs: flags
+    uses: romancitodev/workflows/.github/workflows/rust/msrv.yml@main
