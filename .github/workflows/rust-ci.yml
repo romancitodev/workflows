@@ -8,6 +8,16 @@ on:
         type: string
         required: false
         default: ""
+      cargo-test-flags:
+        description: "Flags adicionales para cargo test (ej: --lib, --doc)"
+        type: string
+        required: false
+        default: ""
+      strict-mode:
+        description: "Modo estricto: los tests deben pasar siempre"
+        type: boolean
+        required: false
+        default: false
     secrets:
       CODECOV_TOKEN:
         required: false
@@ -26,12 +36,17 @@ jobs:
         with:
           script: |
             const isPR  = context.eventName === 'pull_request';
-            const body  = context.payload.pull_request?.body ?? '';
-            const first = body.split(/\r?\n/)[0].trim();
+            const prDescription = context.payload.pull_request?.body ?? '';
+            const prComment = context.payload.comment?.body ?? '';
+            const firstLine = prDescription.split(/\r?\n/)[0].trim();
+            
+            // Buscar !execute en descripción o comentario
+            const hasExecute = firstLine.includes('!execute') || prComment.includes('!execute');
+            const hasSkipTests = firstLine.includes('--skip-tests') || prComment.includes('--skip-tests');
 
             core.setOutput('is_pr',      String(isPR));
-            core.setOutput('execute',    String(isPR && first.includes('!execute')));
-            core.setOutput('skip_tests', String(isPR && first.includes('--skip-tests')));
+            core.setOutput('execute',    String(isPR && hasExecute));
+            core.setOutput('skip_tests', String(isPR && hasSkipTests));
 
   # ── 1. Lint ────────────────────────────────────────────────────────────────
   lint:
@@ -50,6 +65,8 @@ jobs:
       execute:    ${{ needs.flags.outputs.execute }}
       skip_tests: ${{ needs.flags.outputs.skip_tests }}
       is_pr:      ${{ needs.flags.outputs.is_pr }}
+      cargo-test-flags: ${{ inputs.cargo-test-flags }}
+      strict-mode: ${{ inputs.strict-mode }}
     secrets:
       CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
 
